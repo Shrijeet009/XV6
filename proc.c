@@ -7,6 +7,8 @@
 #include "proc.h"
 #include "spinlock.h"
 
+int sched_no=0,trap_no=0,fork_no=0;
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -101,7 +103,7 @@ found:
   // Leave room for trap frame.
   sp -= sizeof *p->tf;
   p->tf = (struct trapframe*)sp;
-
+  trap_no++;
   // Set up new context to start executing at forkret,
   // which returns to trapret.
   sp -= 4;
@@ -215,7 +217,7 @@ fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
-
+  fork_no++;
   release(&ptable.lock);
 
   return pid;
@@ -342,7 +344,7 @@ scheduler(void)
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
-
+      sched_no++;
       swtch(&(c->scheduler), p->context);
       switchkvm();
 
@@ -531,4 +533,27 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+int nps()
+{
+	struct proc *p;
+	int run=0,sleep=0,zombie=0;
+	acquire(&ptable.lock);
+	for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+		if(p->state == SLEEPING)
+			sleep++;
+		else if(p->state == RUNNABLE)
+			run++;
+		else if(p->state == ZOMBIE)
+			zombie++;
+	}
+	cprintf("\tProcesses in SLEEPING State: %d \n",sleep);
+	cprintf("\tProcesses in RUNNABLE State: %d \n",run);
+	cprintf("\tProcesses in ZOMBIE State: %d \n",zombie);
+	cprintf("\tNumber of processes scheduled: %d\n", sched_no);
+	cprintf("\tNumber of processes forks: %d \n", fork_no);
+	cprintf("\tNumber of traps: %d \n", trap_no);
+	release(&ptable.lock);
+	return 22;
 }
